@@ -18,7 +18,7 @@ public class AccessReportController {
     }
 
     @GetMapping("/access-report")
-    public Map<String, List<String>> getAccessReport(
+    public Map<String, List<Map<String, String>>> getAccessReport(
             @RequestParam String org,
             @RequestHeader("Authorization") String authHeader) {
 

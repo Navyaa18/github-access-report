@@ -7,6 +7,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +47,76 @@ public class GitHubClient {
             }
         }
         return allRepos;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, List<Map<String, String>>> getReposWithCollaborators(String org, String token) {
+        Map<String, List<Map<String, String>>> userRepoMap = new HashMap<>();
+        String cursor = null;
+        boolean hasNextPage = true;
+
+        while (hasNextPage) {
+            String afterClause = cursor != null ? ", after: \"" + cursor + "\"" : "";
+            String query = """
+                    {
+                      organization(login: "%s") {
+                        repositories(first: 100%s) {
+                          nodes {
+                            name
+                            collaborators(first: 100) {
+                              edges {
+                                node { login }
+                                permission
+                              }
+                            }
+                          }
+                          pageInfo {
+                            hasNextPage
+                            endCursor
+                          }
+                        }
+                      }
+                    }
+                    """.formatted(org, afterClause);
+
+            HttpHeaders headers = getHeaders(token);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, String> body = Map.of("query", query);
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+
+            try {
+                ResponseEntity<Map> response = restTemplate.exchange(
+                        GitHubConstants.GITHUB_GRAPHQL_URL, HttpMethod.POST, entity, Map.class);
+                Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+                Map<String, Object> organization = (Map<String, Object>) data.get("organization");
+                Map<String, Object> repositories = (Map<String, Object>) organization.get("repositories");
+                List<Map<String, Object>> repoNodes = (List<Map<String, Object>>) repositories.get("nodes");
+                Map<String, Object> pageInfo = (Map<String, Object>) repositories.get("pageInfo");
+
+                for (Map<String, Object> repo : repoNodes) {
+                    String repoName = (String) repo.get("name");
+                    Map<String, Object> collaborators = (Map<String, Object>) repo.get("collaborators");
+                    if (collaborators == null) continue;
+                    List<Map<String, Object>> edges = (List<Map<String, Object>>) collaborators.get("edges");
+                    for (Map<String, Object> edge : edges) {
+                        Map<String, Object> user = (Map<String, Object>) edge.get("node");
+                        String login = (String) user.get("login");
+                        String role = (String) edge.get("permission");
+                        Map<String, String> repoAccess = new HashMap<>();
+                        repoAccess.put("repo", repoName);
+                        repoAccess.put("role", role);
+                        userRepoMap.computeIfAbsent(login, k -> new ArrayList<>()).add(repoAccess);
+                    }
+                }
+
+                hasNextPage = (Boolean) pageInfo.get("hasNextPage");
+                cursor = (String) pageInfo.get("endCursor");
+
+            } catch (HttpClientErrorException.Unauthorized e) {
+                throw new RuntimeException("Invalid GitHub token");
+            }
+        }
+        return userRepoMap;
     }
 
     public List<Map<String, Object>> getCollaborators(String org, String repo, String token) {
