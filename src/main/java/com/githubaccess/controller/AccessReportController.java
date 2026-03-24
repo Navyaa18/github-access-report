@@ -1,6 +1,7 @@
 package com.githubaccess.controller;
 
 import com.githubaccess.config.GitHubConstants;
+import com.githubaccess.dto.RepoAccessDto;
 import com.githubaccess.service.AccessReportService;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +19,7 @@ public class AccessReportController {
     }
 
     @GetMapping("/access-report")
-    public Map<String, List<Map<String, String>>> getAccessReport(
+    public Map<String, List<RepoAccessDto>> getAccessReport(
             @RequestParam String org,
             @RequestHeader("Authorization") String authHeader) {
 

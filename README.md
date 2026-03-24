@@ -15,7 +15,7 @@ A Spring Boot REST API that generates a report showing which users have access t
 
 1. Clone the repository
 ```bash
-git clone https://github.com/your-username/github-access-report.git
+git clone https://github.com/Navyaa18/github-access-report.git
 cd github-access-report
 ```
 
@@ -76,9 +76,12 @@ curl -X GET "http://localhost:8080/api/access-report?org=your_org_name" \
 ### Sample Response
 ```json
 {
-    "user1": ["repo-frontend", "repo-backend"],
-    "user2": ["repo-backend", "repo-database"],
-    "user3": ["repo-frontend"]
+    "Navyaa18": [
+        {"repo": "navya1", "role": "ADMIN"}
+    ],
+    "ABHIXIT2": [
+        {"repo": "navya1", "role": "WRITE"}
+    ]
 }
 ```
 
@@ -90,12 +93,14 @@ curl -X GET "http://localhost:8080/api/access-report?org=your_org_name" \
 src/main/java/com/githubaccess/
 ├── GithubAccessReportApplication.java   → App entry point
 ├── client/
-│   └── GitHubClient.java                → GitHub API calls with pagination
+│   └── GitHubClient.java                → GitHub GraphQL API calls with pagination
 ├── config/
 │   ├── RestTemplateConfig.java          → RestTemplate bean
-│   └── GitHubConstants.java             → API constants
+│   └── GitHubConstants.java             → All constants (URLs, endpoints, headers)
 ├── controller/
-│   └── AccessReportController.java      → REST endpoint
+│   └── AccessReportController.java      → REST endpoint, extracts token from header
+├── dto/
+│   └── RepoAccessDto.java               → Response DTO (repo name + role)
 └── service/
     └── AccessReportService.java         → Business logic
 ```
@@ -107,11 +112,17 @@ src/main/java/com/githubaccess/
 ### 1. Token via Request Header
 The GitHub token is passed in the `Authorization` header per request instead of being stored in `application.properties`. This avoids hardcoding secrets and allows different callers to use their own tokens.
 
-### 2. Concurrent API Calls
-For organizations with 100+ repositories, fetching collaborators sequentially would be very slow. The service uses `CompletableFuture` to fetch collaborators for all repositories in parallel, significantly reducing response time at scale.
+### 2. GraphQL over REST API
+With REST API, every repo requires a separate collaborators call:
+- 100 repos → 101 API calls
+- 500 repos → 501 API calls
 
-### 3. Pagination
-GitHub API returns a maximum of 100 results per page. The client handles pagination automatically by looping through all pages until all repos and collaborators are fetched.
+This quickly hits GitHub's rate limit (5000 requests/hour) at scale.
+
+Instead, the service uses **GitHub's GraphQL API** to fetch all repos and their collaborators in a **single API call**, regardless of how many repos the organization has. This is far more efficient and rate-limit friendly.
+
+### 3. Cursor-based Pagination
+GitHub API returns a maximum of 100 results per page. The client uses cursor-based pagination (`pageInfo.hasNextPage` + `endCursor`) to loop through all pages and fetch all repositories automatically.
 
 ### 4. No Database
 The report is generated in real-time by fetching live data from GitHub API. No database is needed as the problem requires a fresh access report, not historical data.
@@ -119,7 +130,6 @@ The report is generated in real-time by fetching live data from GitHub API. No d
 ### 5. Error Handling
 - Invalid token → returns `Invalid GitHub token` error
 - Organization not found → returns `Organization not found` error
-- Individual repo failures do not fail the entire report
 
 ---
 

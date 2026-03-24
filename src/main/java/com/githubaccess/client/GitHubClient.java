@@ -1,6 +1,7 @@
 package com.githubaccess.client;
 
 import com.githubaccess.config.GitHubConstants;
+import com.githubaccess.dto.RepoAccessDto;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -31,7 +32,7 @@ public class GitHubClient {
         List<Map<String, Object>> allRepos = new ArrayList<>();
         int page = 1;
         while (true) {
-            String url = GitHubConstants.GITHUB_API_BASE + "/orgs/" + org + "/repos?per_page=" + GitHubConstants.PAGE_SIZE + "&page=" + page;
+            String url = GitHubConstants.GITHUB_API_BASE + GitHubConstants.ORGS_REPOS_ENDPOINT.formatted(org, GitHubConstants.PAGE_SIZE, page);
             HttpEntity<Void> entity = new HttpEntity<>(getHeaders(token));
             try {
                 ResponseEntity<List> response = restTemplate.exchange(url, HttpMethod.GET, entity, List.class);
@@ -50,8 +51,8 @@ public class GitHubClient {
     }
 
     @SuppressWarnings("unchecked")
-    public Map<String, List<Map<String, String>>> getReposWithCollaborators(String org, String token) {
-        Map<String, List<Map<String, String>>> userRepoMap = new HashMap<>();
+    public Map<String, List<RepoAccessDto>> getReposWithCollaborators(String org, String token) {
+        Map<String, List<RepoAccessDto>> userRepoMap = new HashMap<>();
         String cursor = null;
         boolean hasNextPage = true;
 
@@ -102,10 +103,7 @@ public class GitHubClient {
                         Map<String, Object> user = (Map<String, Object>) edge.get("node");
                         String login = (String) user.get("login");
                         String role = (String) edge.get("permission");
-                        Map<String, String> repoAccess = new HashMap<>();
-                        repoAccess.put("repo", repoName);
-                        repoAccess.put("role", role);
-                        userRepoMap.computeIfAbsent(login, k -> new ArrayList<>()).add(repoAccess);
+                        userRepoMap.computeIfAbsent(login, k -> new ArrayList<>()).add(new RepoAccessDto(repoName, role));
                     }
                 }
 
@@ -123,7 +121,7 @@ public class GitHubClient {
         List<Map<String, Object>> allCollaborators = new ArrayList<>();
         int page = 1;
         while (true) {
-            String url = GitHubConstants.GITHUB_API_BASE + "/repos/" + org + "/" + repo + "/collaborators?per_page=" + GitHubConstants.PAGE_SIZE + "&page=" + page;
+            String url = GitHubConstants.GITHUB_API_BASE + GitHubConstants.REPO_COLLABORATORS_ENDPOINT.formatted(org, repo, GitHubConstants.PAGE_SIZE, page);
             HttpEntity<Void> entity = new HttpEntity<>(getHeaders(token));
             try {
                 ResponseEntity<List> response = restTemplate.exchange(url, HttpMethod.GET, entity, List.class);

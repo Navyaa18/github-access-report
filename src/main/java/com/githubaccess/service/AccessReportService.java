@@ -1,6 +1,7 @@
 package com.githubaccess.service;
 
 import com.githubaccess.client.GitHubClient;
+import com.githubaccess.dto.RepoAccessDto;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,7 +16,7 @@ public class AccessReportService {
         this.gitHubClient = gitHubClient;
     }
 
-    public Map<String, List<Map<String, String>>> generateReport(String org, String token) {
+    public Map<String, List<RepoAccessDto>> generateReport(String org, String token) {
         return gitHubClient.getReposWithCollaborators(org, token);
     }
 }
